@@ -1,8 +1,8 @@
 @echo off
 setlocal
 
-if not exist bin\serial.exe (
-    echo Error: Binaries not found. Please run build.bat first.
+if not exist ..\bin\serial.exe (
+    echo Error: Binaries not found. Please run build.bat in root first.
     exit /b 1
 )
 
@@ -11,22 +11,22 @@ echo PHASE 3: FUNCTIONAL CORRECTNESS TESTS
 echo ==================================================
 
 echo [1/4] Running Serial...
-bin\serial.exe > serial.txt
+..\bin\serial.exe > serial.txt
 
 echo [2/4] Running OpenMP (8 Threads)...
 set OMP_NUM_THREADS=8
-bin\openmp.exe > openmp.txt
+..\bin\openmp.exe > openmp.txt
 
 echo [3/4] Running MPI (4 Processes)...
 if exist "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" (
-    "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 4 bin\mpi.exe > mpi.txt
+    "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 4 ..\bin\mpi.exe > mpi.txt
 ) else (
     echo Warning: mpiexec not found. Skipping MPI execution.
     echo "MPI skipped" > mpi.txt
 )
 
 echo [4/4] Running OpenCL...
-bin\opencl.exe > opencl.txt
+..\bin\opencl.exe > opencl.txt
 
 echo.
 echo ==================================================

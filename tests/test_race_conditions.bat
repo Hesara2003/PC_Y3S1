@@ -13,7 +13,7 @@ echo ==================================================
 for %%t in (1 2 4 8 16) do (
     set OMP_NUM_THREADS=%%t
     echo Testing with %%t threads...
-    bin\openmp.exe > openmp_race_%%t.txt
+    ..\bin\openmp.exe > openmp_race_%%t.txt
     
     findstr /V "Time:" openmp_race_%%t.txt > openmp_race_clean_%%t.txt
     fc /w serial_clean.txt openmp_race_clean_%%t.txt > nul

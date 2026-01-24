@@ -1,4 +1,0 @@
-Node 2 Load: 120.00 / 120.00
-Node 3 Load: 80.00 / 80.00
-
-Total Demand Served: 200.00 / 200.00

@@ -1,0 +1,18 @@
+# Binaries
+bin/*.exe
+bin/*.pdb
+bin/*.ilk
+bin/*.obj
+
+# Data
+data/xlarge.txt
+data/*.tmp
+
+# Logs and Results
+*.txt
+results/*
+tests/*.txt
+
+# System
+thumbs.db
+.DS_Store

@@ -93,25 +93,36 @@ void load_grid(const char *filename) {
 }
 
 void balance_city(int city_id) {
-  // Thread-private structures
-  int visited[MAX_NODES];
-  int parent_edge[MAX_NODES];
-  int queue[MAX_NODES];
+  // Thread-private structures - Allocate on HEAP to avoid Stack Overflow
+  int *visited = (int *)malloc(MAX_NODES * sizeof(int));
+  int *parent_edge = (int *)malloc(MAX_NODES * sizeof(int));
+  int *queue = (int *)malloc(MAX_NODES * sizeof(int));
+
+  if (!visited || !parent_edge || !queue) {
+    if (visited)
+      free(visited);
+    if (parent_edge)
+      free(parent_edge);
+    if (queue)
+      free(queue);
+    return; // Allocation failure
+  }
 
   Node *city = &nodes[city_id];
 
   while (1) {
-    float current_load;
-    // Read load atomically to check if done?
-    // Logic: specific thread handles specific city. No other thread updates
-    // THIS city's load. So standard read is fine.
+    // Read load atomically?
+    // Since only this thread writes to THIS city's load, dirty read is 'safe
+    // enough' for loop condition. We will re-check strictly inside critical
+    // section if needed (not really, load is private).
     if (city->load >= city->demand)
       break;
 
     float needed = city->demand - city->load;
 
-    // BFS
-    memset(visited, 0, sizeof(visited));
+    // BFS (Parallel Read Phase)
+    // We search based on *snapshot* of state.
+    memset(visited, 0, MAX_NODES * sizeof(int));
     int q_front = 0, q_rear = 0;
 
     queue[q_rear++] = city_id;
@@ -122,8 +133,6 @@ void balance_city(int city_id) {
     while (q_front < q_rear) {
       int curr = queue[q_front++];
 
-      // Check if GEN. Read supply atomically?
-      // We need a snapshot. Just read. We will atomic update later.
       if (nodes[curr].type == TYPE_GEN && nodes[curr].supply > 0) {
         found_gen = curr;
         break;
@@ -133,8 +142,6 @@ void balance_city(int city_id) {
         int edge_idx = incoming_edges[curr][i];
         int neighbor = edges[edge_idx].from;
 
-        // Read capacity. Note: capacity changes dynamically.
-        // We use current snapshot.
         if (!visited[neighbor] && edges[edge_idx].capacity > 0) {
           visited[neighbor] = 1;
           parent_edge[neighbor] = edge_idx;
@@ -144,50 +151,69 @@ void balance_city(int city_id) {
     }
 
     if (found_gen != -1) {
-      float flow = needed;
+      int success = 0;
 
-      // Limit by supply (snapshot)
-      float s = nodes[found_gen].supply;
-      if (s < flow)
-        flow = s;
+// CRITICAL SECTION: Verify and Update
+// We must re-check if the path found is still valid, because other threads
+// modified the graph.
+#pragma omp critical
+      {
+        // Re-calculate flow based on CURRENT STRICT state
+        float flow = needed;
 
-      // Limit by edge capacities (snapshot)
-      int curr = found_gen;
-      while (curr != city_id) {
-        int e_idx = parent_edge[curr];
-        float c = edges[e_idx].capacity;
-        if (c < flow)
-          flow = c;
-        curr = edges[e_idx].to;
+        // Check Generator
+        float s = nodes[found_gen].supply;
+        if (s < flow)
+          flow = s;
+
+        if (flow > 0) {
+          // Check Path Capacity
+          int curr = found_gen;
+          int path_valid = 1;
+          while (curr != city_id) {
+            int e_idx = parent_edge[curr];
+            if (edges[e_idx].capacity < flow) {
+              flow = edges[e_idx].capacity;
+            }
+            if (flow <= 0.0001f) {
+              path_valid = 0;
+              break;
+            }
+            curr = edges[e_idx].to;
+          }
+
+          if (path_valid && flow > 0.0001f) {
+            // Apply Update (Atomic by virtue of Critical Section)
+            curr = found_gen;
+            while (curr != city_id) {
+              int e_idx = parent_edge[curr];
+              edges[e_idx].capacity -= flow;
+              curr = edges[e_idx].to;
+            }
+            nodes[found_gen].supply -= flow;
+            city->load += flow;
+            success = 1;
+          }
+        }
+      } // End Critical
+
+      if (!success) {
+        // If we found a path but it became invalid, we should try BFS again
+        // or if flow was 0, break to avoid infinite loop
+        // Simple heuristic: if we learned nothing new (no path), break.
+        // If we found path but failed verify, loop again.
+        continue;
       }
-
-      if (flow < 0.001f)
-        break; // Avoid infinite minimal updates
-
-      // Apply updates
-      // We must traverse again and ATOMICALLY subtract.
-      // Be careful: capacities might have changed since check.
-      // We proceed with the calculated 'flow'. In a real strict system, we'd
-      // need reservations. Here, we follow the "atomic subtract" instruction.
-
-      curr = found_gen;
-      while (curr != city_id) {
-        int e_idx = parent_edge[curr];
-#pragma omp atomic
-        edges[e_idx].capacity -= flow;
-        curr = edges[e_idx].to;
-      }
-
-#pragma omp atomic
-      nodes[found_gen].supply -= flow;
-
-      // Update local city load (private to this thread effectively)
-      city->load += flow;
 
     } else {
+      // No path found in BFS
       break;
     }
   }
+
+  free(visited);
+  free(parent_edge);
+  free(queue);
 }
 
 int main(int argc, char **argv) {
