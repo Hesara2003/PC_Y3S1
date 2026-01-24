@@ -4,8 +4,8 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_NODES 1000
-#define MAX_EDGES 10000
+#define MAX_NODES 100000
+#define MAX_EDGES 300000
 #define TYPE_GEN 0
 #define TYPE_SUB 1
 #define TYPE_CITY 2
