@@ -293,13 +293,77 @@ void run_unit_tests() {
   }
 }
 
+// --- Generator Helper ---
+void generate_random_grid(const char *filename, int n, int e) {
+  FILE *f = fopen(filename, "w");
+  if (!f) {
+    printf("Error creating file %s\n", filename);
+    return;
+  }
+
+  // Nodes
+  fprintf(f, "# nodes\n");
+  // 0 is Generator
+  // 1..n-1 are mix of Substation/City
+  // Lets make 20% cities
+  srand((unsigned int)time(NULL));
+
+  fprintf(f, "0 GENERATOR 0 %d\n", n * 100);
+
+  int num_cities = n / 5;
+  if (num_cities < 1)
+    num_cities = 1;
+
+  for (int i = 1; i < n; i++) {
+    if (i < (n - num_cities)) {
+      fprintf(f, "%d SUBSTATION 0 0\n", i);
+    } else {
+      int demand = (rand() % 151) + 50; // 50-200
+      fprintf(f, "%d CITY %d 0\n", i, demand);
+    }
+  }
+
+  // Edges
+  fprintf(f, "\n# edges\n");
+  // random tree + extras
+  for (int i = 1; i < n; i++) {
+    int parent = rand() % i;
+    int cap = (rand() % 501) + 500; // 500-1000
+    fprintf(f, "%d %d %d\n", parent, i, cap);
+  }
+
+  int current_edges = n - 1;
+  while (current_edges < e) {
+    int u = rand() % n;
+    int v = rand() % n;
+    if (u != v) {
+      int cap = (rand() % 501) + 500;
+      fprintf(f, "%d %d %d\n", u, v, cap);
+      current_edges++;
+    }
+  }
+
+  fclose(f);
+  printf("Generated %s with %d nodes, %d edges\n", filename, n, e);
+}
+
 int main(int argc, char **argv) {
   if (argc > 1 && strcmp(argv[1], "--test") == 0) {
     run_unit_tests();
     return 0;
   }
 
-  load_grid("data/grid.txt");
+  if (argc > 4 && strcmp(argv[1], "--generate") == 0) {
+    generate_random_grid(argv[2], atoi(argv[3]), atoi(argv[4]));
+    return 0;
+  }
+
+  const char *filename = "data/grid.txt";
+  if (argc > 1 && strncmp(argv[1], "--", 2) != 0) {
+    filename = argv[1];
+  }
+
+  load_grid(filename);
 
   clock_t start = clock();
 
@@ -319,8 +383,10 @@ int main(int argc, char **argv) {
     if (nodes[i].type == TYPE_CITY) {
       total_served += nodes[i].load;
       total_demand += nodes[i].demand;
-      printf("Node %d Load: %.2f / %.2f\n", nodes[i].id, nodes[i].load,
-             nodes[i].demand);
+      if (numNodes < 50) {
+        printf("Node %d Load: %.2f / %.2f\n", nodes[i].id, nodes[i].load,
+               nodes[i].demand);
+      }
     }
   }
 
