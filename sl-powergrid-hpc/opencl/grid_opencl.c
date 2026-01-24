@@ -101,8 +101,13 @@ const char *getErrorString(cl_int error) {
   }
 }
 
-int main() {
-  load_grid("data/grid.txt");
+int main(int argc, char **argv) {
+  const char *filename = "data/grid.txt";
+  if (argc > 1) {
+    filename = argv[1];
+  }
+
+  load_grid(filename);
 
   // OpenCL Setup
   cl_int err;

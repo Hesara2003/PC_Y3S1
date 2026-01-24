@@ -155,7 +155,12 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  load_grid("data/grid.txt");
+  const char *filename = "data/grid.txt";
+  if (argc > 1) {
+    filename = argv[1];
+  }
+
+  load_grid(filename);
 
   // Count cities to partition
   int total_cities = 0;
