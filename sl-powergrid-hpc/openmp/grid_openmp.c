@@ -190,8 +190,13 @@ void balance_city(int city_id) {
   }
 }
 
-int main() {
-  load_grid("data/grid.txt");
+int main(int argc, char **argv) {
+  const char *filename = "data/grid.txt";
+  if (argc > 1) {
+    filename = argv[1];
+  }
+  printf("Loading grid from: %s\n", filename);
+  load_grid(filename);
 
   double start = omp_get_wtime();
 
