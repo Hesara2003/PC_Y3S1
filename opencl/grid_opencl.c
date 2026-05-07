@@ -1,4 +1,4 @@
-#include <CL/cl.h>
+#include <OpenCL/cl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
