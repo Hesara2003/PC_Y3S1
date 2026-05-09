@@ -289,7 +289,7 @@ The OpenMP implementation was optimized through three strategies targeting the A
 |---------|-------------------------|-------------------------|---------|
 | Small (100 nodes) | 0.000093 s | 0.000070 s | 1.33x |
 | Medium (1000 nodes) | 0.002882 s | 0.000536 s | **5.38x** |
-| Large (10000 nodes) | 0.431256 s | 0.108675 s | **3.97x** |
+| Large (10000 nodes) | 0.431256 s | 0.112353 s | **3.84x** |
 
 ![MPI Process Distribution — 4 ranks partition cities, compute independently, aggregate via MPI_Reduce](screenshots/diagram_mpi.png)
 
@@ -350,7 +350,7 @@ The CUDA implementation was optimized using **shared memory tiling** to exploit 
 |---------|--------|-----------|-----------|--------|--------|
 | Small (100N) | 0.000081s | 0.000392s | 0.000467s | 0.000093s | 0.000070s |
 | Medium (1000N) | 0.005704s | 0.004460s | 0.001472s | 0.002882s | 0.000536s |
-| Large (10000N) | 0.446964s | 0.432193s | 0.077757s | 0.431256s | 0.108675s |
+| Large (10000N) | 0.446964s | 0.432193s | 0.077757s | 0.431256s | 0.112353s |
 
 ### Cloud - CUDA (NVIDIA T4 on Google Colab)
 
