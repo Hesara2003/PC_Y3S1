@@ -1,0 +1,72 @@
+name: Correctness
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  correctness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y libopenmpi-dev openmpi-bin
+
+      - name: Build all
+        run: |
+          mkdir -p bin
+          gcc serial/grid_serial.c   -o bin/serial -lm
+          gcc openmp/grid_openmp.c   -fopenmp -o bin/openmp -lm
+          mpicc mpi/grid_mpi.c       -o bin/mpi -lm
+
+      - name: Compare outputs (small dataset)
+        run: |
+          serial_out=$(./bin/serial data/small.txt | grep "Total Demand Served")
+          openmp_out=$(OMP_NUM_THREADS=4 ./bin/openmp data/small.txt | grep "Total Demand Served")
+          mpi_out=$(mpirun -np 4 --oversubscribe ./bin/mpi data/small.txt | grep "Total Demand Served")
+
+          echo "Serial : $serial_out"
+          echo "OpenMP : $openmp_out"
+          echo "MPI    : $mpi_out"
+
+          serial_val=$(echo "$serial_out" | grep -oP '[\d.]+(?= /)' | head -1)
+          openmp_val=$(echo "$openmp_out" | grep -oP '[\d.]+(?= /)' | head -1)
+          mpi_val=$(echo "$mpi_out"    | grep -oP '[\d.]+(?= /)' | head -1)
+
+          if [ "$serial_val" != "$openmp_val" ]; then
+            echo "FAIL: OpenMP result ($openmp_val) differs from serial ($serial_val)"
+            exit 1
+          fi
+          if [ "$serial_val" != "$mpi_val" ]; then
+            echo "FAIL: MPI result ($mpi_val) differs from serial ($serial_val)"
+            exit 1
+          fi
+          echo "PASS: all implementations agree on $serial_val"
+
+      - name: Compare outputs (medium dataset)
+        run: |
+          serial_out=$(./bin/serial data/medium.txt | grep "Total Demand Served")
+          openmp_out=$(OMP_NUM_THREADS=4 ./bin/openmp data/medium.txt | grep "Total Demand Served")
+          mpi_out=$(mpirun -np 4 --oversubscribe ./bin/mpi data/medium.txt | grep "Total Demand Served")
+
+          echo "Serial : $serial_out"
+          echo "OpenMP : $openmp_out"
+          echo "MPI    : $mpi_out"
+
+          serial_val=$(echo "$serial_out" | grep -oP '[\d.]+(?= /)' | head -1)
+          openmp_val=$(echo "$openmp_out" | grep -oP '[\d.]+(?= /)' | head -1)
+          mpi_val=$(echo "$mpi_out"    | grep -oP '[\d.]+(?= /)' | head -1)
+
+          if [ "$serial_val" != "$openmp_val" ]; then
+            echo "FAIL: OpenMP result ($openmp_val) differs from serial ($serial_val)"
+            exit 1
+          fi
+          if [ "$serial_val" != "$mpi_val" ]; then
+            echo "FAIL: MPI result ($mpi_val) differs from serial ($serial_val)"
+            exit 1
+          fi
+          echo "PASS: all implementations agree on $serial_val"

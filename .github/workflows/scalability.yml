@@ -1,0 +1,47 @@
+name: Scalability
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  scalability:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y libopenmpi-dev openmpi-bin
+
+      - name: Build
+        run: |
+          mkdir -p bin
+          gcc serial/grid_serial.c  -o bin/serial -lm
+          gcc openmp/grid_openmp.c  -fopenmp -o bin/openmp -lm
+          mpicc mpi/grid_mpi.c      -o bin/mpi -lm
+
+      - name: OpenMP scalability (large dataset)
+        run: |
+          echo "=== OpenMP Scalability (large dataset) ==="
+          printf "%-12s %s\n" "Threads" "Time (s)"
+          for t in 1 2 4; do
+            time=$(OMP_NUM_THREADS=$t ./bin/openmp data/large.txt 2>/dev/null | grep "^Time:" | awk '{print $2}')
+            printf "%-12s %s\n" "$t" "$time"
+          done
+
+      - name: MPI scalability (large dataset)
+        run: |
+          echo "=== MPI Scalability (large dataset) ==="
+          printf "%-12s %s\n" "Processes" "Time (s)"
+          for p in 1 2 4; do
+            time=$(mpirun -np $p --oversubscribe ./bin/mpi data/large.txt 2>/dev/null | grep "^Time:" | awk '{print $2}')
+            printf "%-12s %s\n" "$p" "$time"
+          done
+
+      - name: Serial baseline (large dataset)
+        run: |
+          echo "=== Serial Baseline (large dataset) ==="
+          ./bin/serial data/large.txt | grep -E "Total Demand|Time:"
