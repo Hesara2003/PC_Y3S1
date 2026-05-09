@@ -10,7 +10,6 @@
 **Submission Deadline:** 10th May 2026
 **Student:** Perera M.P.H | IT23596702
 
----
 
 ## Project Overview: SL PowerGrid HPC Simulator
 
@@ -54,7 +53,6 @@ The project structure is:
 
 ![System Architecture — OpenMP and MPI run locally on Apple M5, CUDA runs on Google Colab NVIDIA T4](screenshots/diagram_architecture.png)
 
----
 
 ## 1. Environment Setup and Tutorial
 
@@ -110,7 +108,6 @@ Since Apple Silicon has no NVIDIA GPU, CUDA is run on Google Colab:
    !./cuda_powergrid
    ```
 
----
 
 ## 2. Program Implementation and Compilation
 
@@ -121,7 +118,6 @@ python3 generate_grid.py data/medium.txt 1000  3000
 python3 generate_grid.py data/large.txt 10000 30000
 ```
 
----
 
 ### 2.1 OpenMP - `openmp/grid_openmp.c`
 
@@ -167,7 +163,6 @@ Total Demand Served: 2461.00 / 2461.00
 Time: 0.000467
 ```
 
----
 
 ### 2.2 MPI - `mpi/grid_mpi.c`
 
@@ -201,7 +196,6 @@ Total Demand Served: 11644.00 / 25004.00
 Time: 0.001196
 ```
 
----
 
 <div style="page-break-before: always"></div>
 
@@ -256,7 +250,6 @@ __global__ void assignPower_optimized(...) {
 
 ![CUDA execution output — both kernels with 2219x speedup](screenshots/cuda_execution.png)
 
----
 
 ## 3. Optimization for Hardware
 
@@ -287,7 +280,6 @@ __global__ void assignPower_optimized(...) {
 
 The OpenMP implementation was optimized through three strategies targeting the Apple M5's heterogeneous CPU architecture. First, thread count was raised from 1 to 8, matching the M5's full 8-core count (4 Performance + 4 Efficiency cores). Second, `schedule(dynamic)` was selected over the default `schedule(static)`. Dynamic scheduling is critical on the M5 because BFS work per city varies unpredictably - some cities are deep in the graph while others are near a generator - meaning static partitioning would leave faster Performance cores idle while Efficiency cores finish large chunks. Dynamic scheduling lets Performance cores claim additional cities continuously. Third, thread-private BFS data structures (`visited`, `queue`, `parent_edge`) were migrated from stack to heap allocation via `malloc`, preventing stack overflows on large datasets and improving cache locality since each thread's data is allocated in contiguous heap pages.
 
----
 
 ### 3.2 MPI Optimization (Apple M5 - Processes)
 
@@ -316,7 +308,6 @@ The OpenMP implementation was optimized through three strategies targeting the A
 
 The MPI implementation was optimized to eliminate all mid-computation communication overhead. The key design decision was a **partitioned independent-computation** model: each MPI rank independently loads the full graph from disk and processes only its assigned city partition without exchanging data during computation. This avoids the significant overhead of `MPI_Send`/`MPI_Recv` calls that would otherwise occur at every BFS iteration. Results are aggregated only once at the end via `MPI_Reduce` with `MPI_SUM` and `MPI_MAX` - highly optimized collective operations in OpenMPI 5.0.9 that use tree-based communication algorithms internally. The city partition algorithm uses remainder-aware load balancing (`rank < remainder` check) to ensure no process receives more than one extra city compared to others, maximizing utilization across all 4 active cores on the Apple M5's performance cluster.
 
----
 
 ### 3.3 CUDA Optimization (NVIDIA T4 GPU - Google Colab)
 
@@ -351,7 +342,6 @@ Speedup: 2219.00x
 
 The CUDA implementation was optimized using **shared memory tiling** to exploit the NVIDIA T4 GPU's memory hierarchy. The unoptimized kernel forces each of the 10,240 threads to independently read all 100 generator values from global GDDR6 memory on every access - a pattern that creates enormous memory bandwidth pressure (320 GB/s on the T4) and cannot be cached because threads access non-coalesced addresses. The optimized kernel uses `__shared__` memory to cooperatively cache generator supply data: all 256 threads in a block load one tile of generator values together into 256 × 4 = 1 KB of on-chip shared memory (48 KB available per SM on T4), requiring only one global memory read per tile instead of 256. Threads then compute from this ultra-low-latency shared memory (~1 cycle vs ~200 cycles for global). This reduces global memory traffic by a factor of 256, producing the **2219x speedup** observed.
 
----
 
 ## 4. Overall Performance Summary
 
@@ -393,7 +383,6 @@ MPI uses supply partitioning (each rank receives `supply / np` from each generat
 
 Amdahl's Law states that the maximum speedup with *p* processors is 1 / (s + (1-s)/p), where *s* is the serial fraction. For OpenMP, the `#pragma omp critical` section that applies each power-flow update is the serial bottleneck. Profiling suggests this section represents roughly 15-20% of execution time on the large dataset, giving a theoretical ceiling of approximately 1 / 0.175 ≈ **5.7x** — which matches the measured 5.57x closely, confirming the implementation is near-optimal for this algorithm. Reducing contention in the critical section (e.g. per-generator locks) would lower the serial fraction and raise the ceiling toward the hardware limit of 8x. For MPI, the serial fraction is the single `MPI_Reduce` collective at the end; with only one collective call, the parallel efficiency remains high across all tested process counts.
 
----
 
 ## References
 
