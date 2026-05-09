@@ -60,15 +60,40 @@ The project structure is:
 
 ## 1. Environment Setup and Tutorial
 
-See the full step-by-step guide in **`tutorial.md`**. Summary below.
+**Environments:** macOS (Apple M5, ARM64) for OpenMP and MPI | Google Colab (NVIDIA T4 GPU) for CUDA
+
+### Prerequisites (macOS)
+
+1. **Xcode Command Line Tools** (provides the Clang compiler):
+   ```bash
+   xcode-select --install
+   # Verify:
+   clang --version   # Expected: Apple clang version 21.x.x
+   ```
+
+2. **Homebrew** package manager:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+3. **Add Homebrew to PATH** (required for `mpicc`, `mpirun` to be found):
+   ```bash
+   echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
 
 ### 1.1 OpenMP - Installation (macOS)
 
-```bash
-# Install OpenMP runtime (keg-only, must reference path explicitly)
-brew install libomp
+OpenMP is Apple Clang's shared-memory threading API. Apple's toolchain excludes the runtime, so it must be installed separately.
 
-# Verify
+```bash
+brew install libomp
+```
+
+`libomp` is **keg-only** — not symlinked into `/opt/homebrew` — so the include and library paths must be passed explicitly at compile time.
+
+Verify the install path:
+```bash
 brew --prefix libomp
 # Output: /opt/homebrew/opt/libomp
 ```
@@ -81,7 +106,22 @@ clang -Xpreprocessor -fopenmp \
   -lomp openmp/grid_openmp.c -o bin/openmp
 ```
 
+**Flag breakdown:**
+- `-Xpreprocessor -fopenmp` — passes the OpenMP flag through Apple Clang's preprocessor
+- `-I$(brew --prefix libomp)/include` — adds the `omp.h` header path
+- `-L$(brew --prefix libomp)/lib -lomp` — links the OpenMP runtime library
+
+**Troubleshooting:**
+
+| Problem | Solution |
+|---------|----------|
+| `omp.h not found` | Run `brew --prefix libomp` and use that exact path in the `-I` flag |
+| `dyld: Library not loaded` at runtime | Add `export DYLD_LIBRARY_PATH=$(brew --prefix libomp)/lib` to `~/.zshrc`, then `source ~/.zshrc` |
+| OpenMP not using all cores | Set thread count explicitly: `OMP_NUM_THREADS=8 ./bin/openmp data/large.txt` |
+
 ### 1.2 MPI - Installation (macOS)
+
+MPI enables distributed-memory parallelism via message passing. We use **Open MPI**, installed via Homebrew.
 
 ```bash
 brew install open-mpi
@@ -91,26 +131,76 @@ mpirun --version
 # Output: mpirun (Open MPI) 5.0.9
 ```
 
-**Compilation:**
+**PATH setup** (if `mpicc`/`mpirun` are not found after install):
 ```bash
-mpicc mpi/grid_mpi.c -o bin/mpi
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
+
+**Compilation and execution:**
+```bash
+mpicc mpi/grid_mpi.c -o bin/mpi      # mpicc wraps Clang + links MPI automatically
+mpirun -np 4 ./bin/mpi data/large.txt
+```
+
+The `mpicc` wrapper automatically includes all required MPI headers and libraries — no manual `-I` or `-L` flags needed.
+
+**Troubleshooting:**
+
+| Problem | Solution |
+|---------|----------|
+| `mpirun: command not found` | Add `/opt/homebrew/bin` to PATH (see above), then `source ~/.zshrc` |
+| `There are not enough slots` | Add `--oversubscribe` flag: `mpirun -np 4 --oversubscribe ./bin/mpi ...` |
+| Permission denied on `./bin/mpi` | Recompile: `mpicc mpi/grid_mpi.c -o bin/mpi` |
 
 ### 1.3 CUDA - Setup (Google Colab)
 
-Since Apple Silicon has no NVIDIA GPU, CUDA is run on Google Colab:
+Apple Silicon has no NVIDIA GPU. CUDA runs on **Google Colab** (Google Cloud Platform), which provides a free NVIDIA T4 GPU runtime with CUDA 12 pre-installed — satisfying the assignment's non-AWS cloud requirement.
 
-1. Go to **[colab.research.google.com](https://colab.research.google.com)** → New Notebook
+**Step 1 — Enable GPU runtime:**
+1. Go to [colab.research.google.com](https://colab.research.google.com) → New Notebook
 2. **Runtime → Change runtime type → T4 GPU → Save**
-3. Verify the GPU:
-   ```bash
-   !nvidia-smi
-   ```
-4. Upload `cuda_powergrid.cu`, then compile and run:
-   ```bash
-   !nvcc cuda_powergrid.cu -o cuda_powergrid
-   !./cuda_powergrid
-   ```
+
+**Step 2 — Verify GPU:**
+```bash
+!nvidia-smi
+# Expected: Tesla T4, CUDA Version 13.0
+```
+
+**Step 3 — Upload source file:**
+```python
+from google.colab import files
+files.upload()   # select cuda_powergrid.cu
+```
+
+**Step 4 — Compile and run:**
+```bash
+!nvcc cuda_powergrid.cu -o cuda_powergrid
+!./cuda_powergrid
+```
+
+**Flag breakdown:**
+- `nvcc` — NVIDIA CUDA Compiler (pre-installed in Colab GPU runtime)
+- `.cu` extension — signals CUDA C++ source to the compiler
+- `-o cuda_powergrid` — output binary name
+
+**Troubleshooting:**
+
+| Problem | Solution |
+|---------|----------|
+| `nvcc: command not found` | Runtime is CPU-only. Go to **Runtime → Change runtime type → T4 GPU** |
+| `CUDA error: no kernel image` | Ensure runtime type is T4 GPU, not a CPU or older GPU runtime |
+| `out of memory` | Reduce `NUM_CITIES` or `NUM_GENERATORS` constants in the source file and recompile |
+| Colab session disconnects | Free Colab sessions expire after ~90 min idle. Re-run all cells after reconnecting |
+
+### 1.4 Generating Test Data
+
+```bash
+mkdir -p data
+python3 generate_grid.py data/small.txt   100   300    # 100 nodes,   300 edges
+python3 generate_grid.py data/medium.txt 1000  3000    # 1000 nodes,  3000 edges
+python3 generate_grid.py data/large.txt 10000 30000    # 10000 nodes, 30000 edges
+```
 
 
 ## 2. Program Implementation and Compilation
