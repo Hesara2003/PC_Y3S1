@@ -1,19 +1,16 @@
-all: serial openmp mpi opencl
+all: serial openmp mpi
 
 bin:
-	if not exist bin mkdir bin
+	mkdir -p bin
 
 serial: | bin
-	gcc serial/grid_serial.c -o bin/serial
+	gcc serial/grid_serial.c -o bin/serial -lm
 
 openmp: | bin
-	gcc openmp/grid_openmp.c -fopenmp -o bin/openmp
+	gcc openmp/grid_openmp.c -fopenmp -o bin/openmp -lm
 
 mpi: | bin
-	mpicc mpi/grid_mpi.c -o bin/mpi
-
-opencl: | bin
-	gcc opencl/grid_opencl.c -lOpenCL -o bin/opencl
+	mpicc mpi/grid_mpi.c -o bin/mpi -lm
 
 clean:
-	if exist bin del /Q bin\* 2>NUL
+	rm -f bin/serial bin/openmp bin/mpi
