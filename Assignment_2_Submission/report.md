@@ -193,8 +193,8 @@ MPI_Reduce(&local_duration, &max_duration,    1, MPI_DOUBLE, MPI_MAX, 0, MPI_COM
 ```
 $ mpirun -np 4 ./bin/mpi data/medium.txt
 
-Total Demand Served: 25004.00 / 25004.00
-Time: 0.000536
+Total Demand Served: 11644.00 / 25004.00
+Time: 0.001196
 ```
 
 ---
@@ -212,6 +212,7 @@ The CUDA version runs on Google Colab (NVIDIA T4 GPU). Each GPU thread handles o
 // UNOPTIMIZED — reads all generators from slow global memory per thread
 __global__ void assignPower_unoptimized(...) {
     int city_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (city_id >= numCities) return;  // guard: 10,240 threads for 10,000 cities
     for (int g = 0; g < numGenerators; g++)
         received += totalSupplyPerGen[g] / (float)numCities; // global mem
     cities[city_id].load = received;
@@ -219,15 +220,21 @@ __global__ void assignPower_unoptimized(...) {
 
 // OPTIMIZED — 256 threads cooperatively load a tile into shared memory
 __global__ void assignPower_optimized(...) {
+    int city_id = blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ float tile_supply[TILE_SIZE];
+    float needed = (city_id < numCities) ? cities[city_id].demand : 0.0f;
     for (int tile_start = 0; tile_start < numGenerators; tile_start += TILE_SIZE) {
-        tile_supply[threadIdx.x] = totalSupplyPerGen[tile_start + threadIdx.x];
+        // Tile boundary guard: only load if within range
+        tile_supply[threadIdx.x] = (tile_start + threadIdx.x < numGenerators)
+                                   ? totalSupplyPerGen[tile_start + threadIdx.x] : 0.0f;
         __syncthreads();
-        for (int g = 0; g < tile_len; g++)
-            received += tile_supply[g] / (float)numCities; // shared mem
+        if (city_id < numCities) {
+            for (int g = 0; g < tile_len; g++)
+                received += tile_supply[g] / (float)numCities; // shared mem
+        }
         __syncthreads();
     }
-    cities[city_id].load = received;
+    if (city_id < numCities) cities[city_id].load = received;
 }
 ```
 
@@ -360,6 +367,17 @@ The CUDA implementation was optimized using **shared memory tiling** to exploit 
 | Optimized (Shared Memory) | 10,000 | 0.0537 ms | **2219x faster** |
 
 ![Performance Comparison — before and after optimization for OpenMP, MPI, and CUDA on large dataset](screenshots/diagram_performance.png)
+
+### Cross-Implementation Correctness Validation
+
+All three local implementations (Serial, OpenMP, MPI) produce identical demand-served totals on the same input, confirming correctness:
+
+| Dataset | Serial | OpenMP 8T | MPI 4P | Match |
+|---------|--------|-----------|--------|-------|
+| Medium (1000 nodes) | 11644.00 / 25004.00 | 11644.00 / 25004.00 | 11644.00 / 25004.00 | ✓ |
+| Large (10000 nodes) | verified | verified | verified (supply ÷ 4 per rank) | ✓ |
+
+MPI uses supply partitioning (each rank receives `supply / np` from each generator) so that the sum across all ranks equals the true total supply — preventing artificial over-serving while still producing the correct aggregate demand-served value.
 
 **Key Findings:**
 
