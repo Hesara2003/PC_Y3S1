@@ -56,8 +56,6 @@ The project structure is:
 
 ---
 
-<div style="page-break-before: always"></div>
-
 ## 1. Environment Setup and Tutorial
 
 See the full step-by-step guide in **`tutorial.md`**. Summary below.
@@ -113,8 +111,6 @@ Since Apple Silicon has no NVIDIA GPU, CUDA is run on Google Colab:
    ```
 
 ---
-
-<div style="page-break-before: always"></div>
 
 ## 2. Program Implementation and Compilation
 
@@ -262,8 +258,6 @@ __global__ void assignPower_optimized(...) {
 
 ---
 
-<div style="page-break-before: always"></div>
-
 ## 3. Optimization for Hardware
 
 ### 3.1 OpenMP Optimization (Apple M5 CPU)
@@ -358,8 +352,6 @@ Speedup: 2219.00x
 The CUDA implementation was optimized using **shared memory tiling** to exploit the NVIDIA T4 GPU's memory hierarchy. The unoptimized kernel forces each of the 10,240 threads to independently read all 100 generator values from global GDDR6 memory on every access - a pattern that creates enormous memory bandwidth pressure (320 GB/s on the T4) and cannot be cached because threads access non-coalesced addresses. The optimized kernel uses `__shared__` memory to cooperatively cache generator supply data: all 256 threads in a block load one tile of generator values together into 256 × 4 = 1 KB of on-chip shared memory (48 KB available per SM on T4), requiring only one global memory read per tile instead of 256. Threads then compute from this ultra-low-latency shared memory (~1 cycle vs ~200 cycles for global). This reduces global memory traffic by a factor of 256, producing the **2219x speedup** observed.
 
 ---
-
-<div style="page-break-before: always"></div>
 
 ## 4. Overall Performance Summary
 
