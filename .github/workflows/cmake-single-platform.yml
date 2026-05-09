@@ -16,6 +16,9 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get install -y libopenmpi-dev openmpi-bin
 
+      - name: Create bin directory
+        run: mkdir -p bin
+
       - name: Build serial
         run: gcc serial/grid_serial.c -o bin/serial -lm
 
