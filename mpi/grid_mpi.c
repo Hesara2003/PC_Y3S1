@@ -90,7 +90,6 @@ void load_grid(const char *filename) {
 }
 
 void balance_city(int city_id) {
-    // Local processing on the rank's copy of the graph
     Node *city = &nodes[city_id];
     int visited[MAX_NODES];
     int parent_edge[MAX_NODES];
@@ -162,16 +161,29 @@ int main(int argc, char **argv) {
 
     load_grid(filename);
 
-    // Count cities to partition
+    /* Each rank holds an independent full-graph copy. Divide each generator's
+     * supply by the number of ranks so the aggregate across all ranks equals
+     * the true total supply — preventing artificial over-serving. */
+    for (int i = 0; i < numNodes; i++) {
+        if (nodes[i].type == TYPE_GEN) {
+            nodes[i].supply /= (float)size;
+        }
+    }
+
+    /* Similarly, scale edge capacities so aggregate flow capacity matches
+     * the single-process baseline. */
+    for (int i = 0; i < numEdges; i++) {
+        edges[i].capacity /= (float)size;
+    }
+
     int total_cities = 0;
-    int city_indices[MAX_NODES]; // mapping 0..total_cities-1 to node_id
+    int city_indices[MAX_NODES];
     for (int i = 0; i < numNodes; i++) {
         if (nodes[i].type == TYPE_CITY) {
             city_indices[total_cities++] = i;
         }
     }
 
-    // Partition logic
     int cities_per_rank = total_cities / size;
     int remainder = total_cities % size;
 
@@ -180,6 +192,9 @@ int main(int argc, char **argv) {
     int end_idx = start_idx + count;
 
     double start_time = MPI_Wtime();
+
+    float local_served = 0.0f;
+    float local_demand = 0.0f;
 
     for (int i = start_idx; i < end_idx; i++) {
         balance_city(city_indices[i]);
@@ -191,13 +206,6 @@ int main(int argc, char **argv) {
 
     MPI_Reduce(&local_duration, &max_duration, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
-    // Aggregate statistics
-    float local_served = 0;
-    float local_demand = 0;
-
-    // Only sum demand for cities this rank handled to avoid double counting
-    // (Wait, we want total served/demand for the WHOLE grid)
-    // Each rank has local served/demand for its chunk.
     for (int i = start_idx; i < end_idx; i++) {
         int nodeId = city_indices[i];
         local_served += nodes[nodeId].load;

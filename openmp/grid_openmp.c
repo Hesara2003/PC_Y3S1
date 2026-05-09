@@ -29,7 +29,6 @@ Edge edges[MAX_EDGES];
 int numNodes = 0;
 int numEdges = 0;
 
-// Adjacency list (shared, read-only during BFS navigation)
 int in_degree[MAX_NODES];
 int incoming_edges[MAX_NODES][100];
 
@@ -39,7 +38,6 @@ void load_grid(const char *filename) {
         printf("Error opening file\n");
         exit(1);
     }
-    // ... same loading logic as serial ...
     char line[256];
     int reading_nodes = 0;
     int reading_edges = 0;
@@ -92,37 +90,18 @@ void load_grid(const char *filename) {
     fclose(f);
 }
 
-void balance_city(int city_id) {
-    // Thread-private structures - Allocate on HEAP to avoid Stack Overflow
-    int *visited = (int *)malloc(MAX_NODES * sizeof(int));
-    int *parent_edge = (int *)malloc(MAX_NODES * sizeof(int));
-    int *queue = (int *)malloc(MAX_NODES * sizeof(int));
-
-    if (!visited || !parent_edge || !queue) {
-        if (visited)
-            free(visited);
-        if (parent_edge)
-            free(parent_edge);
-        if (queue)
-            free(queue);
-        return; // Allocation failure
-    }
-
+/* Buffers are pre-allocated once per thread and passed in to avoid repeated
+ * malloc/free on every city call (thousands of allocator round-trips at scale). */
+void balance_city(int city_id, int *visited, int *parent_edge, int *queue) {
     Node *city = &nodes[city_id];
 
     while (1) {
-        // Read load atomically?
-        // Since only this thread writes to THIS city's load, dirty read is 'safe
-        // enough' for loop condition. We will re-check strictly inside critical
-        // section if needed (not really, load is private).
         if (city->load >= city->demand)
             break;
 
         float needed = city->demand - city->load;
 
-        // BFS (Parallel Read Phase)
-        // We search based on *snapshot* of state.
-        memset(visited, 0, MAX_NODES * sizeof(int));
+        memset(visited, 0, numNodes * sizeof(int));
         int q_front = 0, q_rear = 0;
 
         queue[q_rear++] = city_id;
@@ -153,21 +132,15 @@ void balance_city(int city_id) {
         if (found_gen != -1) {
             int success = 0;
 
-// CRITICAL SECTION: Verify and Update
-// We must re-check if the path found is still valid, because other threads
-// modified the graph.
 #pragma omp critical
             {
-                // Re-calculate flow based on CURRENT STRICT state
                 float flow = needed;
 
-                // Check Generator
                 float s = nodes[found_gen].supply;
                 if (s < flow)
                     flow = s;
 
                 if (flow > 0) {
-                    // Check Path Capacity
                     int curr = found_gen;
                     int path_valid = 1;
                     while (curr != city_id) {
@@ -183,7 +156,6 @@ void balance_city(int city_id) {
                     }
 
                     if (path_valid && flow > 0.0001f) {
-                        // Apply Update (Atomic by virtue of Critical Section)
                         curr = found_gen;
                         while (curr != city_id) {
                             int e_idx = parent_edge[curr];
@@ -195,25 +167,16 @@ void balance_city(int city_id) {
                         success = 1;
                     }
                 }
-            } // End Critical
+            }
 
             if (!success) {
-                // If we found a path but it became invalid, we should try BFS again
-                // or if flow was 0, break to avoid infinite loop
-                // Simple heuristic: if we learned nothing new (no path), break.
-                // If we found path but failed verify, loop again.
                 continue;
             }
 
         } else {
-            // No path found in BFS
             break;
         }
     }
-
-    free(visited);
-    free(parent_edge);
-    free(queue);
 }
 
 int main(int argc, char **argv) {
@@ -226,11 +189,24 @@ int main(int argc, char **argv) {
 
     double start = omp_get_wtime();
 
-#pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < numNodes; i++) {
-        if (nodes[i].type == TYPE_CITY) {
-            balance_city(i);
+    /* Each thread allocates its BFS buffers once for the lifetime of the
+     * parallel region, reusing them across all cities it processes. */
+#pragma omp parallel if (numNodes > 500)
+    {
+        int *visited = (int *)malloc(MAX_NODES * sizeof(int));
+        int *parent_edge = (int *)malloc(MAX_NODES * sizeof(int));
+        int *queue = (int *)malloc(MAX_NODES * sizeof(int));
+
+#pragma omp for schedule(dynamic)
+        for (int i = 0; i < numNodes; i++) {
+            if (nodes[i].type == TYPE_CITY) {
+                balance_city(i, visited, parent_edge, queue);
+            }
         }
+
+        free(visited);
+        free(parent_edge);
+        free(queue);
     }
 
     double end = omp_get_wtime();

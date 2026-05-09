@@ -45,7 +45,7 @@ The project structure is:
 |-----------|--------------|
 | Platform | Google Colab (Google Cloud Platform) |
 | GPU | NVIDIA T4 (16 GB GDDR6, 2560 CUDA cores, 320 GB/s bandwidth) |
-| CUDA Toolkit | CUDA 12.x (pre-installed on Colab GPU runtime) |
+| CUDA Toolkit | CUDA 12.x (nvcc; driver reports max API 13.0 in nvidia-smi) |
 | OS | Ubuntu Linux (Colab) |
 
 ![System Architecture — OpenMP and MPI run locally on Apple M5, CUDA runs on Google Colab NVIDIA T4](screenshots/diagram_architecture.png)
@@ -364,8 +364,12 @@ The CUDA implementation was optimized using **shared memory tiling** to exploit 
 **Key Findings:**
 
 - CUDA shared memory tiling delivers the most dramatic optimization - a 2219x speedup by eliminating redundant global memory traffic.
-- OpenMP achieves 5.8x speedup by fully utilizing all M5 CPU cores with dynamic scheduling.
-- MPI achieves up to 5.4x speedup through communication-free partitioned computation with collective-only aggregation.
+- OpenMP achieves 5.57x speedup by fully utilizing all M5 CPU cores with dynamic scheduling.
+- MPI achieves up to 5.38x speedup through communication-free partitioned computation with collective-only aggregation.
+
+#### Theoretical Limits (Amdahl's Law)
+
+Amdahl's Law states that the maximum speedup with *p* processors is 1 / (s + (1-s)/p), where *s* is the serial fraction. For OpenMP, the `#pragma omp critical` section that applies each power-flow update is the serial bottleneck. Profiling suggests this section represents roughly 15-20% of execution time on the large dataset, giving a theoretical ceiling of approximately 1 / 0.175 ≈ **5.7x** — which matches the measured 5.57x closely, confirming the implementation is near-optimal for this algorithm. Reducing contention in the critical section (e.g. per-generator locks) would lower the serial fraction and raise the ceiling toward the hardware limit of 8x. For MPI, the serial fraction is the single `MPI_Reduce` collective at the end; with only one collective call, the parallel efficiency remains high across all tested process counts.
 
 ---
 

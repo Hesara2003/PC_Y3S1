@@ -32,7 +32,7 @@ jobs:
           echo "OpenMP : $o"
           sv=$(echo "$s" | grep -oP '[\d.]+(?= /)' | head -1)
           ov=$(echo "$o" | grep -oP '[\d.]+(?= /)' | head -1)
-          [ "$sv" = "$ov" ] && echo "PASS" || { echo "FAIL: $ov != $sv"; exit 1; }
+          [ "$sv" = "$ov" ] && echo "PASS" || { echo "FAIL: OpenMP $ov != serial $sv"; exit 1; }
 
       - name: OpenMP matches serial (medium dataset)
         run: |
@@ -42,23 +42,37 @@ jobs:
           echo "OpenMP : $o"
           sv=$(echo "$s" | grep -oP '[\d.]+(?= /)' | head -1)
           ov=$(echo "$o" | grep -oP '[\d.]+(?= /)' | head -1)
-          [ "$sv" = "$ov" ] && echo "PASS" || { echo "FAIL: $ov != $sv"; exit 1; }
+          [ "$sv" = "$ov" ] && echo "PASS" || { echo "FAIL: OpenMP $ov != serial $sv"; exit 1; }
 
-      # MPI loads independent graph copies per rank so supply is not shared —
-      # its served value will differ from serial. We just verify it is
-      # deterministic (same result across two runs) and non-zero.
-      - name: MPI is deterministic (small dataset)
+      # MPI partitions supply across ranks — result approximates serial
+      # but won't match exactly due to independent graph copies and BFS ordering.
+      # Verify it is deterministic and physically consistent (served <= demand).
+      - name: MPI is deterministic and physically valid (small dataset)
         run: |
           r1=$(mpirun -np 4 --oversubscribe ./bin/mpi data/small.txt | grep "Total Demand Served")
           r2=$(mpirun -np 4 --oversubscribe ./bin/mpi data/small.txt | grep "Total Demand Served")
           echo "Run 1: $r1"
           echo "Run 2: $r2"
-          [ "$r1" = "$r2" ] && echo "PASS" || { echo "FAIL: non-deterministic output"; exit 1; }
+          [ "$r1" = "$r2" ] && echo "PASS: deterministic" || { echo "FAIL: non-deterministic"; exit 1; }
+          served=$(echo "$r1" | grep -oP '[\d.]+(?= /)' | head -1)
+          demand=$(echo "$r1" | grep -oP '(?<= /)[\d.]+' | head -1)
+          python3 -c "
+          s,d = float('$served'), float('$demand')
+          assert s <= d + 0.01, f'served {s} > demand {d}'
+          print(f'PASS: served {s} <= demand {d}')
+          "
 
-      - name: MPI is deterministic (medium dataset)
+      - name: MPI is deterministic and physically valid (medium dataset)
         run: |
           r1=$(mpirun -np 4 --oversubscribe ./bin/mpi data/medium.txt | grep "Total Demand Served")
           r2=$(mpirun -np 4 --oversubscribe ./bin/mpi data/medium.txt | grep "Total Demand Served")
           echo "Run 1: $r1"
           echo "Run 2: $r2"
-          [ "$r1" = "$r2" ] && echo "PASS" || { echo "FAIL: non-deterministic output"; exit 1; }
+          [ "$r1" = "$r2" ] && echo "PASS: deterministic" || { echo "FAIL: non-deterministic"; exit 1; }
+          served=$(echo "$r1" | grep -oP '[\d.]+(?= /)' | head -1)
+          demand=$(echo "$r1" | grep -oP '(?<= /)[\d.]+' | head -1)
+          python3 -c "
+          s,d = float('$served'), float('$demand')
+          assert s <= d + 0.01, f'served {s} > demand {d}'
+          print(f'PASS: served {s} <= demand {d}')
+          "
