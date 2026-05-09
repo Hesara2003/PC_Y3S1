@@ -54,6 +54,8 @@ The project structure is:
 ![System Architecture — OpenMP and MPI run locally on Apple M5, CUDA runs on Google Colab NVIDIA T4](screenshots/diagram_architecture.png)
 
 
+<div style="page-break-before: always"></div>
+
 ## 1. Environment Setup and Tutorial
 
 See the full step-by-step guide in **`tutorial.md`**. Summary below.
