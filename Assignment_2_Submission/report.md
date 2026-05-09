@@ -1,3 +1,7 @@
+<div style="text-align:center; margin-bottom: 24px;">
+<img src="screenshots/sliit_logo.jpeg" alt="SLIIT Logo" style="width:120px; height:auto; display:inline-block; border-radius:0; box-shadow:none; margin:0 auto;" />
+</div>
+
 # SE3082 – Parallel Computing
 # Assignment 2: Environment Setup & Parallel Program Optimization
 
@@ -366,7 +370,7 @@ The CUDA implementation was optimized using **shared memory tiling** to exploit 
 | Unoptimized (Global Memory) | 10,000 | 119.2225 ms | baseline |
 | Optimized (Shared Memory) | 10,000 | 0.0537 ms | **2219x faster** |
 
-![Performance Comparison — before and after optimization for OpenMP, MPI, and CUDA on large dataset](screenshots/diagram_performance.png)
+![Execution Time Comparison — bar chart of all configurations on large dataset (lower is better)](screenshots/diagram_performance.png)
 
 ### Cross-Implementation Correctness Validation
 
