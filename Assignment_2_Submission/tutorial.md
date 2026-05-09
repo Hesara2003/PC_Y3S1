@@ -1,8 +1,10 @@
+<div style="page-break-before: always"></div>
+
 # Environment Setup Tutorial
 ## SE3082 – Parallel Computing | SL PowerGrid HPC Simulator
 
-**Target Audience:** 3rd-year Computer Science undergraduates with basic command-line knowledge.  
-**Environments:** macOS (Apple M5, ARM64) for OpenMP & MPI | Google Colab (NVIDIA T4 GPU) for CUDA
+**Target Audience:** 3rd-year Computer Science undergraduates with basic command-line knowledge.
+**Environments:** macOS (Apple M5, ARM64) for OpenMP and MPI | Google Colab (NVIDIA T4 GPU) for CUDA
 
 ---
 
@@ -17,7 +19,7 @@
 | **RAM** | Unified Memory Architecture (shared CPU/GPU pool) |
 | **Compiler** | Apple Clang 21.0.0 (Xcode Command Line Tools) |
 
-**Why this setup?** The Apple M5's heterogeneous CPU design (fast Performance cores + efficient Efficiency cores) makes OpenMP's `schedule(dynamic)` essential — it lets faster cores pick up extra work rather than idling. MPI runs 4 processes mapped to the physical cores for distributed-style parallelism on a single machine.
+**Why this setup?** The Apple M5's heterogeneous CPU design (fast Performance cores + efficient Efficiency cores) makes OpenMP's `schedule(dynamic)` essential - it lets faster cores pick up extra work rather than idling. MPI runs 4 processes mapped to the physical cores for distributed-style parallelism on a single machine.
 
 ### Cloud Environment (CUDA)
 
@@ -58,8 +60,8 @@
 
 ### For Cloud Setup (CUDA)
 
-1. A **Google Account** — to access Google Colab at [colab.research.google.com](https://colab.research.google.com)
-2. No local software installation required — `nvcc` (NVIDIA CUDA Compiler) is pre-installed in the Colab T4 GPU runtime.
+1. A **Google Account** - to access Google Colab at [colab.research.google.com](https://colab.research.google.com)
+2. No local software installation required - `nvcc` (NVIDIA CUDA Compiler) is pre-installed in the Colab T4 GPU runtime.
 
 ---
 
@@ -146,13 +148,13 @@ mpirun -np 4 ./bin/mpi data/grid.txt
 
 ---
 
-## 5. CUDA Setup (Google Colab — Cloud Environment)
+## 5. CUDA Setup (Google Colab - Cloud Environment)
 
 CUDA (Compute Unified Device Architecture) is NVIDIA's GPU parallel computing platform. Since Apple Silicon does not have an NVIDIA GPU, we use **Google Colab** as the cloud environment, which provides free access to NVIDIA T4 GPU instances with CUDA pre-installed.
 
-> **Why Google Colab and not AWS?** The assignment explicitly states the cloud platform must not be AWS. Google Colab (Google Cloud Platform infrastructure) is an ideal choice — it is free, requires no billing setup, has CUDA 12 pre-installed, and is beginner-friendly.
+The assignment requires a non-AWS cloud platform. Google Colab runs on Google Cloud Platform infrastructure, is free to use, requires no billing setup, and has CUDA 12 pre-installed - making it a practical choice for this setup.
 
-### Step 1 — Create a Notebook and Enable GPU
+### Step 1 - Create a Notebook and Enable GPU
 
 1. Navigate to [colab.research.google.com](https://colab.research.google.com)
 2. Click **New Notebook**
@@ -160,7 +162,7 @@ CUDA (Compute Unified Device Architecture) is NVIDIA's GPU parallel computing pl
 4. Under **Hardware accelerator**, select **T4 GPU**
 5. Click **Save**
 
-### Step 2 — Verify GPU Availability
+### Step 2 - Verify GPU Availability
 
 In the first cell, run:
 ```bash
@@ -168,7 +170,7 @@ In the first cell, run:
 ```
 Expected output will show the NVIDIA T4 GPU details, driver version, and CUDA version.
 
-### Step 3 — Upload the CUDA Source File
+### Step 3 - Upload the CUDA Source File
 
 In a new cell, run:
 ```python
@@ -181,7 +183,7 @@ Alternatively, paste the source code directly using the `%%writefile` magic:
 // paste source code here
 ```
 
-### Step 4 — Compile with nvcc
+### Step 4 - Compile with nvcc
 
 ```bash
 !nvcc cuda_powergrid.cu -o cuda_powergrid
@@ -189,11 +191,11 @@ Alternatively, paste the source code directly using the `%%writefile` magic:
 `nvcc` is NVIDIA's CUDA compiler. It compiles both the host (CPU) C code and the device (GPU) kernel code. Successful compilation produces no output.
 
 **Flag breakdown:**
-- `nvcc` — NVIDIA CUDA Compiler (pre-installed in Colab GPU runtime)
-- `cuda_powergrid.cu` — source file (`.cu` extension indicates CUDA C++)
-- `-o cuda_powergrid` — output binary name
+- `nvcc` - NVIDIA CUDA Compiler (pre-installed in Colab GPU runtime)
+- `cuda_powergrid.cu` - source file (`.cu` extension indicates CUDA C++)
+- `-o cuda_powergrid` - output binary name
 
-### Step 5 — Run the Program
+### Step 5 - Run the Program
 
 ```bash
 !./cuda_powergrid

@@ -1,18 +1,30 @@
-# Binaries
-bin/*.exe
-bin/*.pdb
-bin/*.ilk
-bin/*.obj
+# Compiled binaries
+bin/
+*.exe
+*.pdb
+*.ilk
+*.obj
+*.o
+*.out
+
+# Build artifacts
+Assignment_2_Submission/*.html
 
 # Data
 data/xlarge.txt
 data/*.tmp
 
-# Logs and Results
-*.txt
-results/*
+# Results / logs
+results/
 tests/*.txt
 
-# System
-thumbs.db
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.claude/
+*.swp
+*~
+~$*
