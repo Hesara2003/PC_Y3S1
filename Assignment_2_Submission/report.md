@@ -32,6 +32,8 @@ The project structure is:
 └── generate_grid.py                 # Python script to generate test grids
 ```
 
+<div style="page-break-before: always"></div>
+
 #### Local Machine (OpenMP & MPI)
 
 | Component | Specification |
